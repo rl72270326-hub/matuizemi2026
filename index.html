@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ギャルロボ準備サポート</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="companion-panel" aria-label="相棒エリア">
+        <div class="top-strip">
+          <div>
+            <p class="eyebrow">Gyaru Robot</p>
+            <h1>準備、いっしょにやろ。</h1>
+          </div>
+          <span class="status-pill" id="statusPill">待機中</span>
+        </div>
+
+        <div class="companion-stage">
+          <img id="companionImage" src="assets/gyaru-robot.png" alt="ギャル系AIロボット" />
+        </div>
+
+        <div class="talk-box" aria-live="polite">
+          <p id="talkText">ねえねえ、今日なにから片付ける？うち横で見守るで。</p>
+        </div>
+
+        <div class="quick-actions" aria-label="すぐ使うボタン">
+          <button type="button" data-event="before">30分前</button>
+          <button type="button" data-event="phone">スマホ見てた</button>
+          <button type="button" data-event="start">準備開始</button>
+          <button type="button" data-event="race">5分勝負</button>
+          <button type="button" data-event="go">出発前</button>
+        </div>
+      </section>
+
+      <section class="control-panel" aria-label="設定エリア">
+        <div class="tool-block plan-block">
+          <div class="section-heading">
+            <p class="eyebrow">Plan</p>
+            <h2>今日の予定</h2>
+          </div>
+          <label>
+            やること
+            <input id="taskInput" type="text" value="外出の準備" />
+          </label>
+          <label>
+            出発・開始時間
+            <input id="timeInput" type="time" />
+          </label>
+          <div class="countdown-box">
+            <span>残り</span>
+            <strong id="countdownText">時間を入れてね</strong>
+          </div>
+        </div>
+
+        <div class="tool-block">
+          <div class="section-heading">
+            <p class="eyebrow">Mood</p>
+            <h2>今の気分</h2>
+          </div>
+          <div class="mood-grid" id="moodGrid">
+            <button type="button" class="active" data-mood="bright">元気</button>
+            <button type="button" data-mood="sleepy">眠い</button>
+            <button type="button" data-mood="panic">焦り</button>
+            <button type="button" data-mood="low">しんどい</button>
+            <button type="button" data-mood="oshi">推し</button>
+          </div>
+        </div>
+
+        <div class="tool-block phone-block">
+          <div class="section-heading">
+            <p class="eyebrow">Phone</p>
+            <h2>スマホ連動</h2>
+          </div>
+          <div class="phone-status" id="phoneStatus">スマホ状態：未連動</div>
+          <div class="phone-url" id="phoneUrl">スマホURL：サーバー起動で表示</div>
+          <div class="phone-actions">
+            <button type="button" data-phone="down">置いた</button>
+            <button type="button" data-phone="scroll">また見た</button>
+            <button type="button" data-phone="back">戻った</button>
+          </div>
+        </div>
+
+        <div class="tool-block">
+          <div class="section-heading">
+            <p class="eyebrow">Buddy</p>
+            <h2>相棒チェンジ</h2>
+          </div>
+          <label>
+            呼び名
+            <input id="buddyName" type="text" value="ギャルロボ" />
+          </label>
+          <label class="file-picker">
+            <span>写真を選ぶ</span>
+            <input id="photoInput" type="file" accept="image/*" />
+          </label>
+          <button type="button" class="ghost-button" id="resetPhoto">ロボに戻す</button>
+        </div>
+
+        <div class="tool-block music-block">
+          <div class="section-heading">
+            <p class="eyebrow">Music</p>
+            <h2>気分上げリスト</h2>
+          </div>
+          <div class="add-row">
+            <input id="musicInput" type="text" placeholder="好きな曲・推しワード" />
+            <button type="button" id="addMusic">追加</button>
+          </div>
+          <div class="music-suggestion">
+            <span>おすすめ</span>
+            <strong id="musicPick">平成ギャルっぽい元気曲</strong>
+          </div>
+          <ul id="musicList"></ul>
+        </div>
+
+        <div class="tool-block timer-block">
+          <div class="section-heading">
+            <p class="eyebrow">Sprint</p>
+            <h2>5分だけ勝負</h2>
+          </div>
+          <div class="timer-face" id="timerFace">05:00</div>
+          <div class="timer-actions">
+            <button type="button" id="startTimer">開始</button>
+            <button type="button" class="ghost-button" id="resetTimer">リセット</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>

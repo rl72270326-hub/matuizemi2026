@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>スマホリモコン</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body class="remote-page">
+    <main class="remote-card">
+      <p class="eyebrow">Phone Remote</p>
+      <h1>ギャルロボに合図</h1>
+      <p class="remote-status" id="remoteStatus">接続チェック中</p>
+
+      <div class="remote-actions">
+        <button type="button" data-phone="down">スマホ置いた</button>
+        <button type="button" data-phone="scroll">また見てた</button>
+        <button type="button" data-phone="back">戻ってきた</button>
+      </div>
+    </main>
+
+    <script>
+      const remoteStatus = document.querySelector("#remoteStatus");
+
+      async function sendPhoneSignal(phone) {
+        remoteStatus.textContent = "送信中";
+        try {
+          const response = await fetch("/api/event", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone }),
+          });
+          if (!response.ok) throw new Error("send failed");
+          remoteStatus.textContent = "PCに送ったで";
+        } catch {
+          remoteStatus.textContent = "PCに届いてへんかも";
+        }
+      }
+
+      document.querySelectorAll("[data-phone]").forEach((button) => {
+        button.addEventListener("click", () => sendPhoneSignal(button.dataset.phone));
+      });
+
+      fetch("/api/state", { cache: "no-store" })
+        .then((response) => {
+          remoteStatus.textContent = response.ok ? "接続できた" : "接続エラー";
+        })
+        .catch(() => {
+          remoteStatus.textContent = "接続できてへん";
+        });
+    </script>
+  </body>
+</html>

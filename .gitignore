@@ -1,8 +1,0 @@
-.agents/
-.git/
-.tools/
-AGENTS.md
-server.log
-server-error.log
-*.tmp
-*.bak

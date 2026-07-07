@@ -6,38 +6,37 @@ const state = {
   timerId: null,
   photoUrl: null,
   music: JSON.parse(localStorage.getItem("galRobotMusic") || "[]"),
-  lastServerSequence: 0,
 };
 
 const moodLines = {
   bright: [
-    "今日のノリいいやん。まず靴下かばんスマホ、三点セットいこ。",
-    "その勢いある時に先やっとこ。未来の自分めっちゃ助かるで。",
+    "今日のノリいいやん。まず一個だけ片付けよ。",
+    "今いける日やで。未来の自分めっちゃ助かるやつ。",
   ],
   sleepy: [
-    "眠い日は動き小さめでOK。まず立つだけ、次に水飲むだけ。",
-    "脳みそ起きてなくても手は動くから、5分だけ一緒にやろ。",
+    "眠い日は小さくてOK。まず立つだけいこ。",
+    "寝起きモードでも勝てる。水飲んで、5分だけやろ。",
   ],
   panic: [
-    "焦ってる時こそ順番決めよ。いま一番大事なんは出る準備やで。",
-    "大丈夫、全部じゃなくて最初の一個だけ。かばん開けよ。",
+    "焦ってる時こそ順番決めよ。今は一番大事な一個だけ。",
+    "大丈夫、全部じゃなくて最初の一歩だけでいいで。",
   ],
   low: [
     "しんどい日も来てえらい。今日は60点で勝ちにしよ。",
-    "うち横におるから、ゆっくりでいい。まず机の上だけ見よ。",
+    "うち横におるから、ゆっくりでいい。まず目の前だけ見よ。",
   ],
   oshi: [
     "推しに見られてるモード入ったで。今の一歩、普通にかっこいい。",
-    "そのビジュなら準備したら優勝やん。鏡チェックまで行こ。",
+    "そのビジュなら準備したら優勝やん。軽く整えてこ。",
   ],
 };
 
 const eventLines = {
-  before: "ねえねえ、あと30分のつもりで動こ。服、持ち物、出る時間だけ決めよ。",
-  phone: "TikTok見てる場合ちゃうって。うちと勝負しよ、5分だけ準備してみ？",
-  start: "え、ちゃんと動き出したやん。天才すぎん？そのまま一個終わらせよ。",
+  before: "そろそろ準備しよ。服、持ち物、出る時間だけ決めたら勝ち。",
+  drift: "脱線しても戻ってきたら勝ちやで。うちと5分だけ勝負しよ。",
+  start: "え、ちゃんと始めたやん。天才すぎん？そのまま一個終わらせよ。",
   race: "5分勝負スタート。完璧いらん、手を動かしたら勝ち。",
-  go: "やば、間に合いそうやん。そのままGO。忘れ物だけ一回見るで。",
+  go: "やば、間に合いそうやん。そのままGO。忘れ物だけ一回見よ。",
 };
 
 const musicDefaults = [
@@ -54,8 +53,6 @@ const taskInput = document.querySelector("#taskInput");
 const timeInput = document.querySelector("#timeInput");
 const countdownText = document.querySelector("#countdownText");
 const moodGrid = document.querySelector("#moodGrid");
-const phoneStatus = document.querySelector("#phoneStatus");
-const phoneUrl = document.querySelector("#phoneUrl");
 const buddyName = document.querySelector("#buddyName");
 const photoInput = document.querySelector("#photoInput");
 const resetPhoto = document.querySelector("#resetPhoto");
@@ -199,59 +196,17 @@ function resetSprint() {
   renderTimer();
 }
 
-function handlePhoneSignal(phone, fromServer = false) {
-  const source = fromServer ? "スマホから" : "PCで";
-  if (phone === "down") {
-    phoneStatus.textContent = `スマホ状態：${source}置けた`;
-    statusPill.textContent = "集中チャンス";
-    say("スマホ置けたの強い。今のうちに一個だけ片付けよ。");
-  }
-  if (phone === "scroll") {
-    phoneStatus.textContent = `スマホ状態：${source}見てるかも`;
-    statusPill.textContent = "スマホ注意";
-    say(eventLines.phone);
-    animateBuddy("is-phone-alert", 1200);
-  }
-  if (phone === "back") {
-    phoneStatus.textContent = `スマホ状態：${source}戻った`;
-    statusPill.textContent = "復帰できた";
-    say("戻ってきたんえらい。中断しても復帰できたら勝ちやで。");
-  }
-}
-
-async function pollPhoneServer() {
-  if (!window.location.protocol.startsWith("http")) return;
-  try {
-    const response = await fetch("/api/state", { cache: "no-store" });
-    if (!response.ok) throw new Error("server error");
-    const data = await response.json();
-    if (typeof data.sequence === "number" && data.sequence > state.lastServerSequence) {
-      state.lastServerSequence = data.sequence;
-      handlePhoneSignal(data.phone, true);
-    }
-  } catch {
-    phoneStatus.textContent = "スマホ状態：公開版は体験ボタンのみ";
-    phoneUrl.textContent = "スマホURL：PCローカル版でだけ使えます";
-  }
-}
-
 document.querySelectorAll("[data-event]").forEach((button) => {
   button.addEventListener("click", () => {
     const event = button.dataset.event;
     say(eventLines[event]);
     if (event === "race") startSprint();
-    if (event === "phone") {
-      statusPill.textContent = "スマホ注意";
-      animateBuddy("is-phone-alert", 1200);
+    if (event === "drift") {
+      statusPill.textContent = "復帰中";
+      animateBuddy("is-alert", 1200);
     }
-    if (event === "start") statusPill.textContent = "準備中";
+    if (event === "start") statusPill.textContent = "作業中";
     if (event === "go") statusPill.textContent = "出発前";
-  });
-});
-
-document.querySelectorAll("[data-phone]").forEach((button) => {
-  button.addEventListener("click", () => {
-    handlePhoneSignal(button.dataset.phone);
   });
 });
 
@@ -302,10 +257,4 @@ resetTimer.addEventListener("click", resetSprint);
 renderMusic();
 renderTimer();
 updateCountdown();
-if (window.location.protocol.startsWith("http")) {
-  phoneStatus.textContent = "スマホ状態：連動待ち";
-  phoneUrl.textContent = `スマホURL：${window.location.origin}/phone`;
-  window.setInterval(pollPhoneServer, 1000);
-  pollPhoneServer();
-}
 window.setInterval(updateCountdown, 30000);

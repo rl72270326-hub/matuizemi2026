@@ -1,0 +1,15 @@
+{
+  "name": "ギャルロボ準備サポート",
+  "short_name": "ギャルロボ",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#fffaf2",
+  "theme_color": "#ff4f9f",
+  "icons": [
+    {
+      "src": "assets/gyaru-robot.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    }
+  ]
+}

@@ -69,6 +69,8 @@ const voiceStatus = document.querySelector("#voiceStatus");
 const listenButton = document.querySelector("#listenButton");
 const conversationToggle = document.querySelector("#conversationToggle");
 const voiceToggle = document.querySelector("#voiceToggle");
+const micCheckButton = document.querySelector("#micCheckButton");
+const voiceHelp = document.querySelector("#voiceHelp");
 const conversationLog = document.querySelector("#conversationLog");
 const chatInput = document.querySelector("#chatInput");
 const sendChat = document.querySelector("#sendChat");
@@ -142,6 +144,35 @@ function updateVoiceUi() {
   } else {
     voiceStatus.textContent = recognition ? "声：待機中" : "声：文字入力のみ";
   }
+  voiceHelp.textContent = getVoiceAdvice();
+}
+
+function getVoiceAdvice() {
+  const ua = navigator.userAgent || "";
+  const isIos = /iPhone|iPad|iPod/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+  const isChrome = /Chrome|CriOS/i.test(ua);
+  const isSafari = /Safari/i.test(ua) && !/Chrome|CriOS|Android/i.test(ua);
+
+  if (!window.isSecureContext) {
+    return "マイクは安全なURLで使えます。httpsの公開URLで開いてね。";
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    return "このブラウザはマイク許可の機能が弱いです。スマホ標準ブラウザかChromeで開いてね。";
+  }
+  if (!recognition && isAndroid) {
+    return "AndroidはChromeで開くと声の聞き取りが使える可能性が高いです。";
+  }
+  if (!recognition && isIos) {
+    return "iPhoneではブラウザの声聞き取りが不安定なことがあります。Safariで試して、難しければ文字会話を使ってね。";
+  }
+  if (!recognition) {
+    return "このブラウザは声の聞き取りに未対応です。Chromeで開くと改善することがあります。";
+  }
+  if (isChrome || isSafari) {
+    return "マイク許可が出たら許可を押してね。拒否した場合はブラウザ設定からマイクを許可してね。";
+  }
+  return "声の聞き取りはブラウザ相性があります。うまくいかない時はChromeかSafariで開いてね。";
 }
 
 function appendMessage(role, text) {
@@ -224,6 +255,32 @@ function startListening() {
     state.recognizing = false;
     listenButton.textContent = "話す";
     voiceStatus.textContent = "声：もう一回押してね";
+  }
+}
+
+async function checkMicrophone() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    voiceStatus.textContent = "マイク：このブラウザは未対応";
+    voiceHelp.textContent = getVoiceAdvice();
+    say("このブラウザはマイク機能が弱いみたい。ChromeかSafariで開いてみよ。");
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach((track) => track.stop());
+    voiceStatus.textContent = recognition ? "マイク：許可OK" : "マイク：許可OK・文字会話推奨";
+    voiceHelp.textContent = recognition
+      ? "マイク許可はOKです。会話モードONか、話すボタンを試してね。"
+      : "マイク許可はOKですが、このブラウザは音声認識が弱いです。ChromeかSafariでも試してね。";
+    say("マイク許可OKやで。会話モード試してみよ。");
+  } catch (error) {
+    const denied = error && (error.name === "NotAllowedError" || error.name === "PermissionDeniedError");
+    voiceStatus.textContent = denied ? "マイク：許可されてない" : "マイク：確認できない";
+    voiceHelp.textContent = denied
+      ? "ブラウザの設定で、このページのマイクを許可してからもう一回試してね。"
+      : "マイクが見つからないか、別アプリが使っている可能性があります。";
+    say("マイク許可がまだっぽい。ブラウザ設定でマイクを許可してな。");
   }
 }
 
@@ -401,6 +458,7 @@ voiceToggle.addEventListener("click", () => {
 });
 
 listenButton.addEventListener("click", startListening);
+micCheckButton.addEventListener("click", checkMicrophone);
 conversationToggle.addEventListener("click", () => {
   state.conversationMode = !state.conversationMode;
   updateVoiceUi();

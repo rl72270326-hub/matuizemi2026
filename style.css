@@ -233,6 +233,21 @@ h2 {
   background: var(--pink);
 }
 
+.mic-check-button {
+  min-height: 42px;
+}
+
+.voice-help {
+  margin: 0;
+  border-radius: 8px;
+  padding: 12px;
+  color: var(--muted);
+  background: #fffdfa;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .conversation-log {
   display: grid;
   gap: 8px;

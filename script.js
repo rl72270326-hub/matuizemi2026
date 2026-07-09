@@ -7,7 +7,9 @@ const state = {
   photoUrl: null,
   music: JSON.parse(localStorage.getItem("galRobotMusic") || "[]"),
   voiceEnabled: JSON.parse(localStorage.getItem("galRobotVoiceEnabled") || "true"),
+  conversationMode: false,
   recognizing: false,
+  lastRecognitionError: "",
 };
 
 const moodLines = {
@@ -60,7 +62,9 @@ const countdownText = document.querySelector("#countdownText");
 const moodGrid = document.querySelector("#moodGrid");
 const voiceStatus = document.querySelector("#voiceStatus");
 const listenButton = document.querySelector("#listenButton");
+const conversationToggle = document.querySelector("#conversationToggle");
 const voiceToggle = document.querySelector("#voiceToggle");
+const conversationLog = document.querySelector("#conversationLog");
 const chatInput = document.querySelector("#chatInput");
 const sendChat = document.querySelector("#sendChat");
 const buddyName = document.querySelector("#buddyName");
@@ -80,6 +84,7 @@ function buddy() {
 
 function say(line) {
   talkText.textContent = `${buddy()}「${line}」`;
+  appendMessage("robot", line);
   animateBuddy("is-talking");
   speak(line);
 }
@@ -101,12 +106,18 @@ function animateBuddy(className, duration = 820) {
 }
 
 function speak(line) {
-  if (!state.voiceEnabled || !("speechSynthesis" in window)) return;
+  if (!state.voiceEnabled || !("speechSynthesis" in window)) {
+    if (state.conversationMode) queueNextListen(900);
+    return;
+  }
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(line);
   utterance.lang = "ja-JP";
   utterance.rate = 1.08;
   utterance.pitch = 1.22;
+  utterance.onend = () => {
+    if (state.conversationMode) queueNextListen(450);
+  };
 
   const voices = window.speechSynthesis.getVoices();
   const japaneseVoice = voices.find((voice) => voice.lang && voice.lang.startsWith("ja"));
@@ -117,7 +128,31 @@ function speak(line) {
 
 function updateVoiceUi() {
   voiceToggle.textContent = state.voiceEnabled ? "声ON" : "声OFF";
+  conversationToggle.textContent = state.conversationMode ? "会話モードON" : "会話モードOFF";
+  conversationToggle.classList.toggle("active-mode", state.conversationMode);
   voiceStatus.textContent = recognition ? "声：待機中" : "声：文字入力のみ";
+}
+
+function appendMessage(role, text) {
+  if (!conversationLog || !text) return;
+  const row = document.createElement("div");
+  row.className = `message-row ${role}`;
+  const label = role === "user" ? "あなた" : buddy();
+  row.innerHTML = `<span>${label}</span><p></p>`;
+  row.querySelector("p").textContent = text;
+  conversationLog.appendChild(row);
+
+  while (conversationLog.children.length > 8) {
+    conversationLog.removeChild(conversationLog.firstElementChild);
+  }
+  conversationLog.scrollTop = conversationLog.scrollHeight;
+}
+
+function queueNextListen(delay = 600) {
+  if (!state.conversationMode || state.recognizing) return;
+  window.setTimeout(() => {
+    if (state.conversationMode && !state.recognizing) startListening();
+  }, delay);
 }
 
 function makeReply(input) {
@@ -152,10 +187,12 @@ function makeReply(input) {
 }
 
 function handleChat(input) {
+  appendMessage("user", input.trim());
   const reply = makeReply(input);
   say(reply);
   chatInput.value = "";
   voiceStatus.textContent = "声：返事したで";
+  if (state.conversationMode && !state.voiceEnabled) queueNextListen(900);
 }
 
 function startListening() {
@@ -167,7 +204,8 @@ function startListening() {
 
   if (state.recognizing) return;
   state.recognizing = true;
-  voiceStatus.textContent = "声：聞いてる";
+  state.lastRecognitionError = "";
+  voiceStatus.textContent = state.conversationMode ? "声：会話モードで聞いてる" : "声：聞いてる";
   listenButton.textContent = "聞いてる";
   try {
     recognition.start();
@@ -176,6 +214,16 @@ function startListening() {
     listenButton.textContent = "話す";
     voiceStatus.textContent = "声：もう一回押してね";
   }
+}
+
+function stopListening() {
+  if (!recognition || !state.recognizing) return;
+  try {
+    recognition.stop();
+  } catch {
+  }
+  state.recognizing = false;
+  listenButton.textContent = "話す";
 }
 
 function updateMood(mood) {
@@ -342,6 +390,17 @@ voiceToggle.addEventListener("click", () => {
 });
 
 listenButton.addEventListener("click", startListening);
+conversationToggle.addEventListener("click", () => {
+  state.conversationMode = !state.conversationMode;
+  updateVoiceUi();
+  if (state.conversationMode) {
+    say("会話モード入れたで。話しかけてくれたら、うちも返すわ。");
+  } else {
+    stopListening();
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    voiceStatus.textContent = "声：会話モードOFF";
+  }
+});
 sendChat.addEventListener("click", () => handleChat(chatInput.value));
 chatInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") handleChat(chatInput.value);
@@ -377,12 +436,23 @@ if (recognition) {
     if (voiceStatus.textContent === "声：聞いてる") {
       voiceStatus.textContent = "声：待機中";
     }
+    if (state.conversationMode && state.lastRecognitionError === "no-speech") {
+      voiceStatus.textContent = "声：もう一回聞くで";
+      queueNextListen(900);
+    }
   });
 
-  recognition.addEventListener("error", () => {
+  recognition.addEventListener("error", (event) => {
+    state.lastRecognitionError = event.error || "error";
     state.recognizing = false;
     listenButton.textContent = "話す";
-    voiceStatus.textContent = "声：文字入力で試してね";
+    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+      state.conversationMode = false;
+      updateVoiceUi();
+      voiceStatus.textContent = "声：マイク許可が必要";
+      return;
+    }
+    voiceStatus.textContent = event.error === "no-speech" ? "声：聞こえへんかった" : "声：文字入力で試してね";
   });
 }
 

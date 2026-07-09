@@ -207,6 +207,31 @@ h2 {
   padding: 16px;
 }
 
+.voice-status {
+  border-radius: 8px;
+  padding: 14px;
+  color: #0e6773;
+  background: #f4fbfc;
+  font-weight: 900;
+}
+
+.voice-actions,
+.chat-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.chat-row {
+  grid-template-columns: 1fr auto;
+}
+
+.chat-row button {
+  padding: 0 16px;
+  color: #ffffff;
+  background: var(--cyan);
+}
+
 .section-heading {
   display: flex;
   align-items: flex-start;

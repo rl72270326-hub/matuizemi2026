@@ -6,6 +6,8 @@ const state = {
   timerId: null,
   photoUrl: null,
   music: JSON.parse(localStorage.getItem("galRobotMusic") || "[]"),
+  voiceEnabled: JSON.parse(localStorage.getItem("galRobotVoiceEnabled") || "true"),
+  recognizing: false,
 };
 
 const moodLines = {
@@ -46,6 +48,9 @@ const musicDefaults = [
   "焦りすぎない作業BGM",
 ];
 
+const RecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
+const recognition = RecognitionApi ? new RecognitionApi() : null;
+
 const companionImage = document.querySelector("#companionImage");
 const talkText = document.querySelector("#talkText");
 const statusPill = document.querySelector("#statusPill");
@@ -53,6 +58,11 @@ const taskInput = document.querySelector("#taskInput");
 const timeInput = document.querySelector("#timeInput");
 const countdownText = document.querySelector("#countdownText");
 const moodGrid = document.querySelector("#moodGrid");
+const voiceStatus = document.querySelector("#voiceStatus");
+const listenButton = document.querySelector("#listenButton");
+const voiceToggle = document.querySelector("#voiceToggle");
+const chatInput = document.querySelector("#chatInput");
+const sendChat = document.querySelector("#sendChat");
 const buddyName = document.querySelector("#buddyName");
 const photoInput = document.querySelector("#photoInput");
 const resetPhoto = document.querySelector("#resetPhoto");
@@ -71,6 +81,7 @@ function buddy() {
 function say(line) {
   talkText.textContent = `${buddy()}「${line}」`;
   animateBuddy("is-talking");
+  speak(line);
 }
 
 function pick(array) {
@@ -87,6 +98,84 @@ function animateBuddy(className, duration = 820) {
       companionImage.classList.remove(className);
     }
   }, duration);
+}
+
+function speak(line) {
+  if (!state.voiceEnabled || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(line);
+  utterance.lang = "ja-JP";
+  utterance.rate = 1.08;
+  utterance.pitch = 1.22;
+
+  const voices = window.speechSynthesis.getVoices();
+  const japaneseVoice = voices.find((voice) => voice.lang && voice.lang.startsWith("ja"));
+  if (japaneseVoice) utterance.voice = japaneseVoice;
+
+  window.speechSynthesis.speak(utterance);
+}
+
+function updateVoiceUi() {
+  voiceToggle.textContent = state.voiceEnabled ? "声ON" : "声OFF";
+  voiceStatus.textContent = recognition ? "声：待機中" : "声：文字入力のみ";
+}
+
+function makeReply(input) {
+  const text = input.trim();
+  if (!text) return "今なんて言おうとした？一言だけでも聞くで。";
+  if (text.includes("眠") || text.includes("寝")) {
+    return "眠いのに話してくれたんえらい。まず立つだけ、一緒にやろ。";
+  }
+  if (text.includes("やる気") || text.includes("無理") || text.includes("しんど")) {
+    return "今日は気合い満タンじゃなくていいで。5分だけ動けたら勝ちにしよ。";
+  }
+  if (text.includes("遅") || text.includes("間に合")) {
+    return "焦る時こそ一個ずつ。今は持ち物、服、出る時間だけ見よ。";
+  }
+  if (text.includes("スマホ") || text.includes("TikTok") || text.includes("SNS")) {
+    return "戻ってきたのがもう勝ちやん。スマホ置いて、5分だけうちと勝負しよ。";
+  }
+  if (text.includes("課題") || text.includes("勉強") || text.includes("レポート")) {
+    return "課題モード入ろ。まずタイトルか一行だけ書いたら、だいぶ進んだ扱いでOK。";
+  }
+  if (text.includes("不安") || text.includes("怖") || text.includes("心配")) {
+    return "不安ある中で動こうとしてるの強いで。全部じゃなくて、次の一手だけ決めよ。";
+  }
+  if (text.includes("推し") || text.includes("かわい") || text.includes("写真")) {
+    return "推しパワー入ったな。今の自分ちょっと盛れてるから、その勢いでいこ。";
+  }
+  if (text.includes("音楽") || text.includes("曲")) {
+    updateMusicPick();
+    return `今日は「${musicPick.textContent}」の気分ちゃう？流して準備しよ。`;
+  }
+  return "話してくれてありがと。じゃあ今から一番小さい一歩だけやろ。うち見てるで。";
+}
+
+function handleChat(input) {
+  const reply = makeReply(input);
+  say(reply);
+  chatInput.value = "";
+  voiceStatus.textContent = "声：返事したで";
+}
+
+function startListening() {
+  if (!recognition) {
+    voiceStatus.textContent = "声：このブラウザは音声入力に未対応";
+    say("文字でも話せるで。下の入力欄に今の気持ち入れてみて。");
+    return;
+  }
+
+  if (state.recognizing) return;
+  state.recognizing = true;
+  voiceStatus.textContent = "声：聞いてる";
+  listenButton.textContent = "聞いてる";
+  try {
+    recognition.start();
+  } catch {
+    state.recognizing = false;
+    listenButton.textContent = "話す";
+    voiceStatus.textContent = "声：もう一回押してね";
+  }
 }
 
 function updateMood(mood) {
@@ -242,6 +331,22 @@ musicInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter") addMusicItem();
 });
 
+voiceToggle.addEventListener("click", () => {
+  state.voiceEnabled = !state.voiceEnabled;
+  localStorage.setItem("galRobotVoiceEnabled", JSON.stringify(state.voiceEnabled));
+  if (!state.voiceEnabled && "speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+  }
+  updateVoiceUi();
+  if (state.voiceEnabled) say("声オンにしたで。ちゃんと声でも応援するわ。");
+});
+
+listenButton.addEventListener("click", startListening);
+sendChat.addEventListener("click", () => handleChat(chatInput.value));
+chatInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") handleChat(chatInput.value);
+});
+
 taskInput.addEventListener("change", () => {
   say(`「${taskInput.value || "今日の予定"}」やな。まず一個だけ動かそ。`);
 });
@@ -254,7 +359,35 @@ timeInput.addEventListener("change", () => {
 startTimer.addEventListener("click", startSprint);
 resetTimer.addEventListener("click", resetSprint);
 
+if (recognition) {
+  recognition.lang = "ja-JP";
+  recognition.interimResults = false;
+  recognition.continuous = false;
+
+  recognition.addEventListener("result", (event) => {
+    const transcript = event.results[0][0].transcript;
+    chatInput.value = transcript;
+    voiceStatus.textContent = `声：${transcript}`;
+    handleChat(transcript);
+  });
+
+  recognition.addEventListener("end", () => {
+    state.recognizing = false;
+    listenButton.textContent = "話す";
+    if (voiceStatus.textContent === "声：聞いてる") {
+      voiceStatus.textContent = "声：待機中";
+    }
+  });
+
+  recognition.addEventListener("error", () => {
+    state.recognizing = false;
+    listenButton.textContent = "話す";
+    voiceStatus.textContent = "声：文字入力で試してね";
+  });
+}
+
 renderMusic();
 renderTimer();
 updateCountdown();
+updateVoiceUi();
 window.setInterval(updateCountdown, 30000);

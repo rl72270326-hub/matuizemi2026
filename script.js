@@ -51,7 +51,12 @@ const musicDefaults = [
 ];
 
 const RecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
-const recognition = RecognitionApi ? new RecognitionApi() : null;
+let recognition = null;
+try {
+  recognition = RecognitionApi ? new RecognitionApi() : null;
+} catch {
+  recognition = null;
+}
 
 const companionImage = document.querySelector("#companionImage");
 const talkText = document.querySelector("#talkText");
@@ -130,7 +135,13 @@ function updateVoiceUi() {
   voiceToggle.textContent = state.voiceEnabled ? "声ON" : "声OFF";
   conversationToggle.textContent = state.conversationMode ? "会話モードON" : "会話モードOFF";
   conversationToggle.classList.toggle("active-mode", state.conversationMode);
-  voiceStatus.textContent = recognition ? "声：待機中" : "声：文字入力のみ";
+  if (state.conversationMode && !recognition) {
+    voiceStatus.textContent = "声：このブラウザは文字会話のみ";
+  } else if (state.conversationMode) {
+    voiceStatus.textContent = "声：会話モードON";
+  } else {
+    voiceStatus.textContent = recognition ? "声：待機中" : "声：文字入力のみ";
+  }
 }
 
 function appendMessage(role, text) {
@@ -394,7 +405,11 @@ conversationToggle.addEventListener("click", () => {
   state.conversationMode = !state.conversationMode;
   updateVoiceUi();
   if (state.conversationMode) {
-    say("会話モード入れたで。話しかけてくれたら、うちも返すわ。");
+    if (recognition) {
+      say("会話モード入れたで。話しかけてくれたら、うちも返すわ。");
+    } else {
+      say("会話モード入れたで。このブラウザは声の聞き取りが弱いから、文字でも話しかけてな。");
+    }
   } else {
     stopListening();
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();

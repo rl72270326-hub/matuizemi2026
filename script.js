@@ -9,6 +9,9 @@ const state = {
   voiceEnabled: JSON.parse(localStorage.getItem("galRobotVoiceEnabled") || "true"),
   conversationMode: false,
   recognizing: false,
+  speaking: false,
+  listenTimer: null,
+  shouldRestartListening: false,
   lastRecognitionError: "",
 };
 
@@ -113,24 +116,38 @@ function animateBuddy(className, duration = 820) {
 }
 
 function speak(line) {
+  stopListening();
+  window.clearTimeout(state.listenTimer);
+  state.speaking = true;
+
   if (!state.voiceEnabled || !("speechSynthesis" in window)) {
+    state.speaking = false;
     if (state.conversationMode) queueNextListen(900);
     return;
   }
+
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(line);
   utterance.lang = "ja-JP";
   utterance.rate = 1.08;
   utterance.pitch = 1.22;
-  utterance.onend = () => {
+
+  const finishSpeaking = () => {
+    state.speaking = false;
     if (state.conversationMode) queueNextListen(450);
   };
+  utterance.onend = finishSpeaking;
+  utterance.onerror = finishSpeaking;
 
   const voices = window.speechSynthesis.getVoices();
   const japaneseVoice = voices.find((voice) => voice.lang && voice.lang.startsWith("ja"));
   if (japaneseVoice) utterance.voice = japaneseVoice;
 
   window.speechSynthesis.speak(utterance);
+
+  window.setTimeout(() => {
+    if (state.speaking) finishSpeaking();
+  }, Math.max(2400, line.length * 170));
 }
 
 function updateVoiceUi() {
@@ -191,9 +208,10 @@ function appendMessage(role, text) {
 }
 
 function queueNextListen(delay = 600) {
-  if (!state.conversationMode || state.recognizing) return;
-  window.setTimeout(() => {
-    if (state.conversationMode && !state.recognizing) startListening();
+  window.clearTimeout(state.listenTimer);
+  if (!state.conversationMode || state.recognizing || state.speaking || !recognition) return;
+  state.listenTimer = window.setTimeout(() => {
+    if (state.conversationMode && !state.recognizing && !state.speaking) startListening();
   }, delay);
 }
 
@@ -231,6 +249,7 @@ function makeReply(input) {
 function handleChat(input) {
   appendMessage("user", input.trim());
   const reply = makeReply(input);
+  stopListening();
   say(reply);
   chatInput.value = "";
   voiceStatus.textContent = "声：返事したで";
@@ -244,8 +263,10 @@ function startListening() {
     return;
   }
 
-  if (state.recognizing) return;
+  if (state.recognizing || state.speaking) return;
+  window.clearTimeout(state.listenTimer);
   state.recognizing = true;
+  state.shouldRestartListening = false;
   state.lastRecognitionError = "";
   voiceStatus.textContent = state.conversationMode ? "声：会話モードで聞いてる" : "声：聞いてる";
   listenButton.textContent = "聞いてる";
@@ -255,6 +276,7 @@ function startListening() {
     state.recognizing = false;
     listenButton.textContent = "話す";
     voiceStatus.textContent = "声：もう一回押してね";
+    if (state.conversationMode) queueNextListen(900);
   }
 }
 
@@ -286,12 +308,49 @@ async function checkMicrophone() {
 
 function stopListening() {
   if (!recognition || !state.recognizing) return;
+  state.shouldRestartListening = false;
   try {
     recognition.stop();
   } catch {
   }
   state.recognizing = false;
   listenButton.textContent = "話す";
+}
+
+async function enableConversationMode() {
+  state.conversationMode = true;
+  updateVoiceUi();
+
+  if (!recognition) {
+    say("会話モード入れたで。このブラウザは声の聞き取りが弱いから、文字でも話しかけてな。");
+    return;
+  }
+
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+    } catch {
+      state.conversationMode = false;
+      updateVoiceUi();
+      voiceStatus.textContent = "声：マイク許可が必要";
+      say("マイク許可が必要やで。許可してからもう一回会話モード押してな。");
+      return;
+    }
+  }
+
+  voiceStatus.textContent = "声：ずっと聞く準備OK";
+  say("会話モードON。うちが聞いて、返して、また聞く流れでいくで。");
+}
+
+function disableConversationMode() {
+  state.conversationMode = false;
+  window.clearTimeout(state.listenTimer);
+  stopListening();
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  state.speaking = false;
+  updateVoiceUi();
+  voiceStatus.textContent = "声：会話モードOFF";
 }
 
 function updateMood(mood) {
@@ -460,18 +519,10 @@ voiceToggle.addEventListener("click", () => {
 listenButton.addEventListener("click", startListening);
 micCheckButton.addEventListener("click", checkMicrophone);
 conversationToggle.addEventListener("click", () => {
-  state.conversationMode = !state.conversationMode;
-  updateVoiceUi();
-  if (state.conversationMode) {
-    if (recognition) {
-      say("会話モード入れたで。話しかけてくれたら、うちも返すわ。");
-    } else {
-      say("会話モード入れたで。このブラウザは声の聞き取りが弱いから、文字でも話しかけてな。");
-    }
+  if (!state.conversationMode) {
+    enableConversationMode();
   } else {
-    stopListening();
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-    voiceStatus.textContent = "声：会話モードOFF";
+    disableConversationMode();
   }
 });
 sendChat.addEventListener("click", () => handleChat(chatInput.value));
@@ -494,24 +545,27 @@ resetTimer.addEventListener("click", resetSprint);
 if (recognition) {
   recognition.lang = "ja-JP";
   recognition.interimResults = false;
-  recognition.continuous = false;
+  recognition.continuous = true;
+  recognition.maxAlternatives = 1;
 
   recognition.addEventListener("result", (event) => {
-    const transcript = event.results[0][0].transcript;
+    const latest = event.results[event.results.length - 1];
+    if (!latest || !latest[0]) return;
+    const transcript = latest[0].transcript;
     chatInput.value = transcript;
     voiceStatus.textContent = `声：${transcript}`;
+    state.shouldRestartListening = false;
     handleChat(transcript);
   });
 
   recognition.addEventListener("end", () => {
     state.recognizing = false;
     listenButton.textContent = "話す";
-    if (voiceStatus.textContent === "声：聞いてる") {
-      voiceStatus.textContent = "声：待機中";
-    }
-    if (state.conversationMode && state.lastRecognitionError === "no-speech") {
+    if (state.conversationMode && !state.speaking) {
       voiceStatus.textContent = "声：もう一回聞くで";
-      queueNextListen(900);
+      queueNextListen(state.lastRecognitionError === "no-speech" ? 900 : 500);
+    } else if (voiceStatus.textContent === "声：聞いてる") {
+      voiceStatus.textContent = "声：待機中";
     }
   });
 
@@ -525,7 +579,8 @@ if (recognition) {
       voiceStatus.textContent = "声：マイク許可が必要";
       return;
     }
-    voiceStatus.textContent = event.error === "no-speech" ? "声：聞こえへんかった" : "声：文字入力で試してね";
+    voiceStatus.textContent = event.error === "no-speech" ? "声：聞こえへんかった" : "声：もう一回聞くで";
+    if (state.conversationMode && !state.speaking) queueNextListen(1000);
   });
 }
 
